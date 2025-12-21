@@ -1,0 +1,66 @@
+package de.mcmdev.antifreecam;
+
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.world.chunk.Column;
+import com.github.retrooper.packetevents.util.Vector3i;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerChunkData;
+import org.bukkit.Chunk;
+import org.bukkit.entity.Player;
+
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+
+public final class PlayerPacketCache {
+
+    private final Map<ChunkPosition, Deque<PacketWrapper<?>>> packets;
+
+    public PlayerPacketCache() {
+        this.packets = new ConcurrentHashMap<>();
+    }
+
+    public void addPacket(WrapperPlayServerChunkData wrapperPlayServerChunkData) {
+        ChunkPosition chunkPosition = getChunkPosition(wrapperPlayServerChunkData.getColumn());
+        addPacket(chunkPosition, wrapperPlayServerChunkData);
+    }
+
+    public void addPacket(WrapperPlayServerBlockChange wrapperPlayServerBlockChange) {
+        ChunkPosition chunkPosition = getChunkPosition(wrapperPlayServerBlockChange.getBlockPosition());
+        addPacket(chunkPosition, wrapperPlayServerBlockChange);
+    }
+
+    public void removeChunk(Chunk chunk)   {
+        packets.remove(new ChunkPosition(chunk.getX(), chunk.getZ()));
+    }
+
+    public void resendChunks(Player player) {
+        for(Iterator<Deque<PacketWrapper<?>>> chunkIterator = packets.values().iterator(); chunkIterator.hasNext();) {
+            Deque<PacketWrapper<?>> chunkPackets = chunkIterator.next();
+            for (Iterator<PacketWrapper<?>> packetIterator = chunkPackets.iterator(); packetIterator.hasNext();) {
+                PacketWrapper<?> packetWrapper = packetIterator.next();
+                PacketEvents.getAPI().getPlayerManager().sendPacket(player, packetWrapper);
+                packetIterator.remove();
+            }
+            chunkIterator.remove();
+        }
+    }
+
+    private ChunkPosition getChunkPosition(Column column) {
+        return new ChunkPosition(column.getX(), column.getZ());
+    }
+
+    private ChunkPosition getChunkPosition(Vector3i blockPosition) {
+        return new ChunkPosition(blockPosition.x >> 4, blockPosition.z >> 4);
+    }
+
+    private void addPacket(ChunkPosition chunkPosition, PacketWrapper<?> packetWrapper) {
+        packets.computeIfAbsent(chunkPosition, k -> new ConcurrentLinkedDeque<>()).add(packetWrapper);
+    }
+
+    private record ChunkPosition(int x, int z) {
+    }
+}

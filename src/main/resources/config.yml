@@ -1,0 +1,5 @@
+# When the player is above this Y level, chunk data will be cut off.
+position-cutoff: 0
+# This defines how many chunks will be cut off.
+# This value is defined in chunks, not blocks, so a value of 4 means Y = 0 because -64 + 16 * 4 = 0.
+chunk-cutoff: 4
