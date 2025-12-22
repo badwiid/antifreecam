@@ -1,6 +1,7 @@
 package de.mcmdev.antifreecam;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import de.mcmdev.antifreecam.structures.StructureHider;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -15,5 +16,7 @@ public class AntiFreecamPlugin extends JavaPlugin {
         ChunkCacheMap chunkCacheMap = new ChunkCacheMap();
         PacketEvents.getAPI().getEventManager().registerListeners(new PacketListener(chunkCacheMap, chunkCutoff, positionCutoff));
         Bukkit.getPluginManager().registerEvents(new PlayerListener(chunkCacheMap, positionCutoff), this);
+
+        Bukkit.getPluginManager().registerEvents(new StructureHider(), this);
     }
 }
