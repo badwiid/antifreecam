@@ -31,6 +31,7 @@ java {
 
 tasks {
     runServer {
+        jvmArgs("-XX:+AllowEnhancedClassRedefinition")
         minecraftVersion("1.21.10")
         downloadPlugins {
             modrinth("packetevents", "2.11.0+spigot")

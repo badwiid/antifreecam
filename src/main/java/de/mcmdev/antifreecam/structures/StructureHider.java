@@ -1,27 +1,26 @@
 package de.mcmdev.antifreecam.structures;
 
+import de.mcmdev.antifreecam.api.PlayerCacheHolder;
 import io.papermc.paper.event.packet.PlayerChunkLoadEvent;
 import io.papermc.paper.math.Position;
-import io.papermc.paper.registry.keys.StructureTypeKeys;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.generator.structure.GeneratedStructure;
 import org.bukkit.generator.structure.Structure;
 import org.bukkit.generator.structure.StructurePiece;
-import org.bukkit.generator.structure.StructureType;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-public class StructureHider implements Listener {
+public final class StructureHider implements Listener {
 
     private static final Set<Structure> HIDDEN_STRUCTURES = Set.of(
             Structure.BURIED_TREASURE,
@@ -32,30 +31,53 @@ public class StructureHider implements Listener {
             Structure.TRAIL_RUINS
     );
 
+    private final PlayerCacheHolder<StructureCache> playerCacheHolder;
+
+    public StructureHider(PlayerCacheHolder<StructureCache> playerCacheHolder) {
+        this.playerCacheHolder = playerCacheHolder;
+    }
+
     @EventHandler
     private void onPlayerChunkLoad(PlayerChunkLoadEvent event)  {
-        List<BoundingBox> boundingBoxes = extractStructureBoundingBoxes(event.getChunk());
-        if(boundingBoxes.isEmpty()) return;
+        BoundingBox chunkBoundingBox = createChunkBoundingBox(event.getChunk());
+        Set<GeneratedStructure> structuresToHide = findStructuresToHide(event.getChunk());
+        if(structuresToHide.isEmpty()) return;
 
-        Map<Position, BlockData> blockDataMap = createBlockDataMap(boundingBoxes);
+        StructureCache structureCache = playerCacheHolder.get(event.getPlayer());
+        for (GeneratedStructure structure : structuresToHide) {
+            Set<BoundingBox> boundingBoxesOfPiecesInChunk = extractStructurePieceBoundingBoxesInChunk(chunkBoundingBox, structure);
+            structureCache.add(structure.getBoundingBox(), boundingBoxesOfPiecesInChunk);
 
-        event.getPlayer().sendMultiBlockChange(blockDataMap);
+            Map<Position, BlockData> blockDataMap = createBlockDataMap(boundingBoxesOfPiecesInChunk);
+            event.getPlayer().sendMultiBlockChange(blockDataMap);
+        }
+    }
+
+    @EventHandler
+    private void onPlayerMove(PlayerMoveEvent event) {
+        if (!event.hasChangedBlock()) {
+            return;
+        }
+        playerCacheHolder.get(event.getPlayer()).checkUpdates(event.getPlayer());
     }
 
     private Position toPosition(Vector vector) {
         return Position.block(vector.getBlockX(), vector.getBlockY(), vector.getBlockZ());
     }
 
-    private @NotNull List<BoundingBox> extractStructureBoundingBoxes(Chunk chunk) {
-        BoundingBox chunkBoundingBox = createChunkBoundingBox(chunk);
-        return chunk.getStructures()
-                .stream()
-                .filter(generatedStructure -> HIDDEN_STRUCTURES.contains(generatedStructure.getStructure()))
-                .flatMap(generatedStructure -> generatedStructure.getPieces().stream())
+    private @NotNull Set<BoundingBox> extractStructurePieceBoundingBoxesInChunk(BoundingBox chunkBoundingBox, GeneratedStructure generatedStructure) {
+        return generatedStructure.getPieces().stream()
                 .map(StructurePiece::getBoundingBox)
                 .filter(boundingBox -> boundingBox.overlaps(chunkBoundingBox))
                 .map(boundingBox -> boundingBox.intersection(chunkBoundingBox))
-                .toList();
+                .collect(Collectors.toSet());
+    }
+
+    private Set<GeneratedStructure> findStructuresToHide(Chunk chunk) {
+        return chunk.getStructures()
+                .stream()
+                .filter(generatedStructure -> HIDDEN_STRUCTURES.contains(generatedStructure.getStructure()))
+                .collect(Collectors.toSet());
     }
 
     private BoundingBox createChunkBoundingBox(Chunk chunk) {

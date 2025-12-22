@@ -1,4 +1,4 @@
-package de.mcmdev.antifreecam;
+package de.mcmdev.antifreecam.ylevel;
 
 import com.github.retrooper.packetevents.protocol.world.chunk.Column;
 import com.github.retrooper.packetevents.util.Vector3i;

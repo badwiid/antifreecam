@@ -1,12 +1,10 @@
-package de.mcmdev.antifreecam;
+package de.mcmdev.antifreecam.ylevel;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.simple.PacketPlaySendEvent;
 import com.github.retrooper.packetevents.protocol.world.chunk.Column;
 import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerChunkData;
 import org.bukkit.Chunk;
 import org.bukkit.entity.Player;
 
@@ -17,11 +15,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Function;
 
-public final class PlayerPacketCache {
+public final class PacketCache {
 
     private final Map<ChunkPosition, Deque<PacketWrapper<?>>> packets;
 
-    public PlayerPacketCache() {
+    public PacketCache() {
         this.packets = new ConcurrentHashMap<>();
     }
 
