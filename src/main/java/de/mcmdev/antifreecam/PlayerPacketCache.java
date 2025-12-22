@@ -1,6 +1,7 @@
 package de.mcmdev.antifreecam;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.simple.PacketPlaySendEvent;
 import com.github.retrooper.packetevents.protocol.world.chunk.Column;
 import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
@@ -14,6 +15,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Function;
 
 public final class PlayerPacketCache {
 
@@ -23,14 +25,14 @@ public final class PlayerPacketCache {
         this.packets = new ConcurrentHashMap<>();
     }
 
-    public void addPacket(WrapperPlayServerChunkData wrapperPlayServerChunkData) {
-        ChunkPosition chunkPosition = getChunkPosition(wrapperPlayServerChunkData.getColumn());
-        addPacket(chunkPosition, wrapperPlayServerChunkData);
-    }
-
-    public void addPacket(WrapperPlayServerBlockChange wrapperPlayServerBlockChange) {
-        ChunkPosition chunkPosition = getChunkPosition(wrapperPlayServerBlockChange.getBlockPosition());
-        addPacket(chunkPosition, wrapperPlayServerBlockChange);
+    public <P extends PacketWrapper<P>> void addPacket(
+            PacketPlaySendEvent event,
+            Function<PacketPlaySendEvent, P> cloningFunction,
+            Function<P, ChunkPosition> positionFunction
+    ) {
+        P clonedWrapper = cloningFunction.apply(event);
+        ChunkPosition chunkPosition = positionFunction.apply(clonedWrapper);
+        packets.computeIfAbsent(chunkPosition, k -> new ConcurrentLinkedDeque<>()).add(clonedWrapper);
     }
 
     public void removeChunk(Chunk chunk)   {
@@ -55,12 +57,5 @@ public final class PlayerPacketCache {
 
     private ChunkPosition getChunkPosition(Vector3i blockPosition) {
         return new ChunkPosition(blockPosition.x >> 4, blockPosition.z >> 4);
-    }
-
-    private void addPacket(ChunkPosition chunkPosition, PacketWrapper<?> packetWrapper) {
-        packets.computeIfAbsent(chunkPosition, k -> new ConcurrentLinkedDeque<>()).add(packetWrapper);
-    }
-
-    private record ChunkPosition(int x, int z) {
     }
 }

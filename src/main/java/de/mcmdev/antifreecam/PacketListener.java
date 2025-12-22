@@ -12,6 +12,7 @@ import com.github.retrooper.packetevents.protocol.world.chunk.palette.PaletteTyp
 import com.github.retrooper.packetevents.protocol.world.chunk.palette.SingletonPalette;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerChunkData;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange;
 import org.bukkit.entity.Player;
 
 public final class PacketListener extends SimplePacketListenerAbstract {
@@ -28,11 +29,10 @@ public final class PacketListener extends SimplePacketListenerAbstract {
 
     @Override
     public void onPacketPlaySend(PacketPlaySendEvent event) {
-        if (event.getPacketType() == PacketType.Play.Server.CHUNK_DATA) {
-            handleChunkDataPacket(event);
-        }
-        if(event.getPacketType() == PacketType.Play.Server.BLOCK_CHANGE) {
-            handleBlockChangePacket(event);
+        switch (event.getPacketType()) {
+            case CHUNK_DATA -> handleChunkDataPacket(event);
+            case BLOCK_CHANGE -> handleBlockChangePacket(event);
+            case MULTI_BLOCK_CHANGE -> handleMultiBlockChange(event);
         }
     }
 
@@ -42,11 +42,11 @@ public final class PacketListener extends SimplePacketListenerAbstract {
             return;
         }
 
-        PacketPlaySendEvent clone = event.clone();
+        PacketPlaySendEvent clonedEvent = event.clone();
         WrapperPlayServerChunkData wrapperPlayServerChunkData = new WrapperPlayServerChunkData(event);
         Column column = wrapperPlayServerChunkData.getColumn();
 
-        chunkCacheMap.get(player).addPacket(new WrapperPlayServerChunkData(clone));
+        chunkCacheMap.get(player).addPacket(clonedEvent, WrapperPlayServerChunkData::new, wrapper -> ChunkPosition.fromColumn(wrapper.getColumn()));
 
         BaseChunk[] newChunks = removeChunks(column.getChunks());
         TileEntity[] newTileEntities = removeTileEntities(column.getTileEntities());
@@ -67,11 +67,27 @@ public final class PacketListener extends SimplePacketListenerAbstract {
             return;
         }
 
-        PacketPlaySendEvent clone = event.clone();
+        PacketPlaySendEvent clonedEvent = event.clone();
         WrapperPlayServerBlockChange wrapperPlayServerBlockChange = new WrapperPlayServerBlockChange(event);
-        chunkCacheMap.get(player).addPacket(new WrapperPlayServerBlockChange(clone));
+        chunkCacheMap.get(player).addPacket(clonedEvent, WrapperPlayServerBlockChange::new, wrapper -> ChunkPosition.fromBlockPosition(wrapper.getBlockPosition()));
 
         if(wrapperPlayServerBlockChange.getBlockPosition().y < toYCoordinate(chunkCutoff)) {
+            event.setCancelled(true);
+        }
+    }
+
+    private void handleMultiBlockChange(PacketPlaySendEvent event) {
+        Player player = event.getPlayer();
+        if (player.getLocation().getBlockY() < positionCutoff) {
+            return;
+        }
+
+        PacketPlaySendEvent clonedEvent = event.clone();
+        WrapperPlayServerMultiBlockChange wrapper = new WrapperPlayServerMultiBlockChange(event);
+
+        chunkCacheMap.get(player).addPacket(clonedEvent, WrapperPlayServerMultiBlockChange::new, it -> ChunkPosition.fromChunkPosition(wrapper.getChunkPosition()));
+
+        if (wrapper.getChunkPosition().y < positionCutoff) {
             event.setCancelled(true);
         }
     }

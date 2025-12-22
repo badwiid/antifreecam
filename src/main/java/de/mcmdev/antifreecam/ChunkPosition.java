@@ -1,0 +1,25 @@
+package de.mcmdev.antifreecam;
+
+import com.github.retrooper.packetevents.protocol.world.chunk.Column;
+import com.github.retrooper.packetevents.util.Vector3i;
+import org.bukkit.Location;
+
+public record ChunkPosition(int x, int z) {
+
+    public static ChunkPosition fromColumn(Column column) {
+        return new ChunkPosition(column.getX(), column.getZ());
+    }
+
+    public static ChunkPosition fromBlockPosition(Vector3i blockPosition) {
+        return new ChunkPosition(blockPosition.x >> 4, blockPosition.z >> 4);
+    }
+
+    public static ChunkPosition fromChunkPosition(Vector3i chunkPosition) {
+        return new ChunkPosition(chunkPosition.x, chunkPosition.z);
+    }
+
+    public static ChunkPosition fromLocation(Location location) {
+        return new ChunkPosition(location.getBlockX() >> 4, location.getBlockZ() >> 4);
+    }
+
+}
