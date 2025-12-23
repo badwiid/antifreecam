@@ -13,22 +13,24 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBl
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerChunkData;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMultiBlockChange;
 import de.mcmdev.antifreecam.api.PlayerCacheHolder;
+import de.mcmdev.antifreecam.config.Config;
+import de.mcmdev.antifreecam.config.ConfigHolder;
 import org.bukkit.entity.Player;
+
+import java.util.Optional;
 
 public final class PacketListener extends SimplePacketListenerAbstract {
 
+    private final ConfigHolder configHolder;
     private final PlayerCacheHolder<PacketCache> playerCacheHolder;
-    private final int chunkCutoff;
-    private final int positionCutoff;
 
-    public PacketListener(PlayerCacheHolder<PacketCache> playerCacheHolder, int chunkCutoff, int positionCutoff) {
+    public PacketListener(final ConfigHolder configHolder, final PlayerCacheHolder<PacketCache> playerCacheHolder) {
+        this.configHolder = configHolder;
         this.playerCacheHolder = playerCacheHolder;
-        this.chunkCutoff = chunkCutoff;
-        this.positionCutoff = positionCutoff;
     }
 
     @Override
-    public void onPacketPlaySend(PacketPlaySendEvent event) {
+    public void onPacketPlaySend(final PacketPlaySendEvent event) {
         switch (event.getPacketType()) {
             case CHUNK_DATA -> handleChunkDataPacket(event);
             case BLOCK_CHANGE -> handleBlockChangePacket(event);
@@ -36,64 +38,75 @@ public final class PacketListener extends SimplePacketListenerAbstract {
         }
     }
 
-    private void handleChunkDataPacket(PacketPlaySendEvent event) {
-        Player player = event.getPlayer();
-        if (player.getLocation().getBlockY() < positionCutoff) {
-            return;
-        }
+    private void handleChunkDataPacket(final PacketPlaySendEvent event) {
+        final Player player = event.getPlayer();
+        final Optional<Config> configOptional = configHolder.getConfig(player.getWorld().getName());
+        if (configOptional.isEmpty()) return;
+        final Config config = configOptional.get();
+        if (!config.isEnableYLevelCutoff()) return;
+        if (player.getLocation().getBlockY() < config.getRevealHeight()) return;
+        final int chunkCutoff = toChunkIndex(config.getCutoffHeight(), player.getWorld().getMinHeight());
 
-        PacketPlaySendEvent clonedEvent = event.clone();
-        WrapperPlayServerChunkData wrapperPlayServerChunkData = new WrapperPlayServerChunkData(event);
-        Column column = wrapperPlayServerChunkData.getColumn();
+        final PacketPlaySendEvent clonedEvent = event.clone();
+        final WrapperPlayServerChunkData wrapper = new WrapperPlayServerChunkData(event);
+        final Column column = wrapper.getColumn();
 
-        playerCacheHolder.get(player).addPacket(clonedEvent, WrapperPlayServerChunkData::new, wrapper -> ChunkPosition.fromColumn(wrapper.getColumn()));
+        playerCacheHolder.get(player).addPacket(clonedEvent, WrapperPlayServerChunkData::new, it -> ChunkPosition.fromColumn(wrapper.getColumn()));
 
-        BaseChunk[] newChunks = removeChunks(column.getChunks());
-        TileEntity[] newTileEntities = removeTileEntities(column.getTileEntities());
+        final BaseChunk[] newChunks = removeChunks(column.getChunks(), chunkCutoff);
+        final TileEntity[] newTileEntities = removeTileEntities(column.getTileEntities(), config.getCutoffHeight());
 
-        Column newColumn = new Column(
+        final Column newColumn = new Column(
                 column.getX(), column.getZ(), column.isFullChunk(),
                 newChunks, newTileEntities,
                 column.getHeightmaps()
         );
-        wrapperPlayServerChunkData.setColumn(newColumn);
+        wrapper.setColumn(newColumn);
 
         event.markForReEncode(true);
     }
 
-    private void handleBlockChangePacket(PacketPlaySendEvent event) {
-        Player player = event.getPlayer();
-        if (player.getLocation().getBlockY() < positionCutoff) {
+    private void handleBlockChangePacket(final PacketPlaySendEvent event) {
+        final Player player = event.getPlayer();
+        final Optional<Config> configOptional = configHolder.getConfig(player.getWorld().getName());
+        if (configOptional.isEmpty()) {
             return;
         }
+        final Config config = configOptional.get();
+        if (!config.isEnableYLevelCutoff()) return;
+        if (player.getLocation().getBlockY() < config.getRevealHeight()) return;
 
-        PacketPlaySendEvent clonedEvent = event.clone();
-        WrapperPlayServerBlockChange wrapperPlayServerBlockChange = new WrapperPlayServerBlockChange(event);
-        playerCacheHolder.get(player).addPacket(clonedEvent, WrapperPlayServerBlockChange::new, wrapper -> ChunkPosition.fromBlockPosition(wrapper.getBlockPosition()));
+        final PacketPlaySendEvent clonedEvent = event.clone();
+        final WrapperPlayServerBlockChange wrapper = new WrapperPlayServerBlockChange(event);
+        playerCacheHolder.get(player).addPacket(clonedEvent, WrapperPlayServerBlockChange::new, it -> ChunkPosition.fromBlockPosition(wrapper.getBlockPosition()));
 
-        if(wrapperPlayServerBlockChange.getBlockPosition().y < toYCoordinate(chunkCutoff)) {
+        if (wrapper.getBlockPosition().y < config.getCutoffHeight()) {
             event.setCancelled(true);
         }
     }
 
-    private void handleMultiBlockChange(PacketPlaySendEvent event) {
-        Player player = event.getPlayer();
-        if (player.getLocation().getBlockY() < positionCutoff) {
+    private void handleMultiBlockChange(final PacketPlaySendEvent event) {
+        final Player player = event.getPlayer();
+        final Optional<Config> configOptional = configHolder.getConfig(player.getWorld().getName());
+        if (configOptional.isEmpty()) {
             return;
         }
+        final Config config = configOptional.get();
+        if (!config.isEnableYLevelCutoff()) return;
+        if (player.getLocation().getBlockY() < config.getRevealHeight()) return;
 
-        PacketPlaySendEvent clonedEvent = event.clone();
-        WrapperPlayServerMultiBlockChange wrapper = new WrapperPlayServerMultiBlockChange(event);
+        final PacketPlaySendEvent clonedEvent = event.clone();
+        final WrapperPlayServerMultiBlockChange wrapper = new WrapperPlayServerMultiBlockChange(event);
 
         playerCacheHolder.get(player).addPacket(clonedEvent, WrapperPlayServerMultiBlockChange::new, it -> ChunkPosition.fromChunkPosition(wrapper.getChunkPosition()));
 
-        if (wrapper.getChunkPosition().y < positionCutoff) {
+        if (wrapper.getChunkPosition().y < config.getCutoffHeight()) {
             event.setCancelled(true);
         }
     }
 
-    private BaseChunk[] removeChunks(BaseChunk[] originalChunks) {
-        BaseChunk[] chunks = new BaseChunk[originalChunks.length];
+    private BaseChunk[] removeChunks(final BaseChunk[] originalChunks, final int chunkCutoff) {
+        final BaseChunk[] chunks = new BaseChunk[originalChunks.length];
         for (int i = 0; i < originalChunks.length; i++) {
             if (i < chunkCutoff) {
                 chunks[i] = createEmptyChunk();
@@ -104,12 +117,12 @@ public final class PacketListener extends SimplePacketListenerAbstract {
         return chunks;
     }
 
-    private TileEntity[] removeTileEntities(TileEntity[] tileEntities) {
-        int tileEntityCount = countTileEntities(tileEntities);
-        TileEntity[] newTileEntities = new TileEntity[tileEntityCount];
+    private TileEntity[] removeTileEntities(final TileEntity[] tileEntities, final int cutoffHeight) {
+        final int tileEntityCount = countTileEntities(tileEntities, cutoffHeight);
+        final TileEntity[] newTileEntities = new TileEntity[tileEntityCount];
         int counter = 0;
-        for (TileEntity tileEntity : tileEntities) {
-            if (tileEntity.getY() >= toYCoordinate(chunkCutoff)) {
+        for (final TileEntity tileEntity : tileEntities) {
+            if (tileEntity.getY() >= cutoffHeight) {
                 newTileEntities[counter] = tileEntity;
                 counter++;
             }
@@ -117,10 +130,10 @@ public final class PacketListener extends SimplePacketListenerAbstract {
         return newTileEntities;
     }
 
-    private int countTileEntities(TileEntity[] tileEntities) {
+    private int countTileEntities(final TileEntity[] tileEntities, final int cutoffHeight) {
         int count = 0;
-        for (TileEntity tileEntity : tileEntities) {
-            if (tileEntity.getY() >= toYCoordinate(chunkCutoff)) {
+        for (final TileEntity tileEntity : tileEntities) {
+            if (tileEntity.getY() >= cutoffHeight) {
                 count++;
             }
         }
@@ -135,7 +148,7 @@ public final class PacketListener extends SimplePacketListenerAbstract {
         );
     }
 
-    private int toYCoordinate(int chunkIndex) {
-        return (chunkIndex << 4) - 64;
+    private int toChunkIndex(final int yCoordinate, final int worldMin) {
+        return (yCoordinate >> 4) - (worldMin >> 4);
     }
 }

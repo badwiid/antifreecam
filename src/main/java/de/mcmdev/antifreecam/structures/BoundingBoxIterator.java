@@ -10,7 +10,7 @@ public final class BoundingBoxIterator implements Iterator<Vector>, Iterable<Vec
     private final BoundingBox box;
     private int currentX, currentY, currentZ;
 
-    public BoundingBoxIterator(BoundingBox box) {
+    public BoundingBoxIterator(final BoundingBox box) {
         this.box = box;
         this.currentX = (int) box.getMinX();
         this.currentY = (int) box.getMinY();
@@ -24,7 +24,7 @@ public final class BoundingBoxIterator implements Iterator<Vector>, Iterable<Vec
 
     @Override
     public Vector next() {
-        Vector current = new Vector(currentX, currentY, currentZ);
+        final Vector current = new Vector(currentX, currentY, currentZ);
 
         currentZ++;
         if (currentZ > box.getMaxZ()) {

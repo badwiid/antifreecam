@@ -2,6 +2,7 @@ package de.mcmdev.antifreecam;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import de.mcmdev.antifreecam.api.PlayerCacheHolder;
+import de.mcmdev.antifreecam.config.ConfigHolder;
 import de.mcmdev.antifreecam.structures.StructureCache;
 import de.mcmdev.antifreecam.structures.StructureHider;
 import de.mcmdev.antifreecam.ylevel.PacketCache;
@@ -14,22 +15,20 @@ public final class AntiFreecamPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        saveDefaultConfig();
-        loadYLevelHider();
-        loadStructureHider();
+        saveResource("world.yml", false);
+        final ConfigHolder configHolder = new ConfigHolder(getDataFolder());
+        loadYLevelHider(configHolder);
+        loadStructureHider(configHolder);
     }
 
-    private void loadYLevelHider() {
-        final int positionCutoff = getConfig().getInt("position-cutoff", 0);
-        final int chunkCutoff = getConfig().getInt("chunk-cutoff", 4);
-
+    private void loadYLevelHider(final ConfigHolder configHolder) {
         final PlayerCacheHolder<PacketCache> packetCacheHolder = new PlayerCacheHolder<>(PacketCache::new);
-        PacketEvents.getAPI().getEventManager().registerListeners(new PacketListener(packetCacheHolder, chunkCutoff, positionCutoff));
-        Bukkit.getPluginManager().registerEvents(new PlayerListener(packetCacheHolder, positionCutoff), this);
+        PacketEvents.getAPI().getEventManager().registerListeners(new PacketListener(configHolder, packetCacheHolder));
+        Bukkit.getPluginManager().registerEvents(new PlayerListener(configHolder, packetCacheHolder), this);
     }
 
-    private void loadStructureHider() {
+    private void loadStructureHider(final ConfigHolder configHolder) {
         final PlayerCacheHolder<StructureCache> structureCacheHolder = new PlayerCacheHolder<>(StructureCache::new);
-        Bukkit.getPluginManager().registerEvents(new StructureHider(structureCacheHolder), this);
+        Bukkit.getPluginManager().registerEvents(new StructureHider(configHolder, structureCacheHolder), this);
     }
 }

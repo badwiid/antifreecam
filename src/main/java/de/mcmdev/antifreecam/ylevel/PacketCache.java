@@ -24,24 +24,24 @@ public final class PacketCache {
     }
 
     public <P extends PacketWrapper<P>> void addPacket(
-            PacketPlaySendEvent event,
-            Function<PacketPlaySendEvent, P> cloningFunction,
-            Function<P, ChunkPosition> positionFunction
+            final PacketPlaySendEvent event,
+            final Function<PacketPlaySendEvent, P> cloningFunction,
+            final Function<P, ChunkPosition> positionFunction
     ) {
-        P clonedWrapper = cloningFunction.apply(event);
-        ChunkPosition chunkPosition = positionFunction.apply(clonedWrapper);
+        final P clonedWrapper = cloningFunction.apply(event);
+        final ChunkPosition chunkPosition = positionFunction.apply(clonedWrapper);
         packets.computeIfAbsent(chunkPosition, k -> new ConcurrentLinkedDeque<>()).add(clonedWrapper);
     }
 
-    public void removeChunk(Chunk chunk)   {
+    public void removeChunk(final Chunk chunk) {
         packets.remove(new ChunkPosition(chunk.getX(), chunk.getZ()));
     }
 
-    public void resendChunks(Player player) {
-        for(Iterator<Deque<PacketWrapper<?>>> chunkIterator = packets.values().iterator(); chunkIterator.hasNext();) {
-            Deque<PacketWrapper<?>> chunkPackets = chunkIterator.next();
-            for (Iterator<PacketWrapper<?>> packetIterator = chunkPackets.iterator(); packetIterator.hasNext();) {
-                PacketWrapper<?> packetWrapper = packetIterator.next();
+    public void resendChunks(final Player player) {
+        for (final Iterator<Deque<PacketWrapper<?>>> chunkIterator = packets.values().iterator(); chunkIterator.hasNext(); ) {
+            final Deque<PacketWrapper<?>> chunkPackets = chunkIterator.next();
+            for (final Iterator<PacketWrapper<?>> packetIterator = chunkPackets.iterator(); packetIterator.hasNext(); ) {
+                final PacketWrapper<?> packetWrapper = packetIterator.next();
                 PacketEvents.getAPI().getPlayerManager().sendPacket(player, packetWrapper);
                 packetIterator.remove();
             }
@@ -49,11 +49,11 @@ public final class PacketCache {
         }
     }
 
-    private ChunkPosition getChunkPosition(Column column) {
+    private ChunkPosition getChunkPosition(final Column column) {
         return new ChunkPosition(column.getX(), column.getZ());
     }
 
-    private ChunkPosition getChunkPosition(Vector3i blockPosition) {
+    private ChunkPosition getChunkPosition(final Vector3i blockPosition) {
         return new ChunkPosition(blockPosition.x >> 4, blockPosition.z >> 4);
     }
 }

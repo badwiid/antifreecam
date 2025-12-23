@@ -18,28 +18,28 @@ public final class StructureCache {
         this.structures = new ConcurrentHashMap<>();
     }
 
-    public void add(BoundingBox structureBoundingBox, Set<BoundingBox> boundingBoxesOfPiecesInChunk) {
+    public void add(final BoundingBox structureBoundingBox, final Set<BoundingBox> boundingBoxesOfPiecesInChunk) {
         structures.computeIfAbsent(structureBoundingBox, boundingBox -> new HashSet<>()).addAll(boundingBoxesOfPiecesInChunk);
     }
 
-    public void checkUpdates(Player player) {
-        for (Map.Entry<BoundingBox, Set<BoundingBox>> entry : structures.entrySet()) {
+    public void checkUpdates(final Player player) {
+        for (final Map.Entry<BoundingBox, Set<BoundingBox>> entry : structures.entrySet()) {
             if (entry.getKey().contains(player.getEyeLocation().toVector())) {
                 update(player, entry.getValue());
             }
         }
     }
 
-    private void update(Player player, Set<BoundingBox> boundingBoxes) {
-        Set<BlockState> blockStates = new HashSet<>();
-        for (BoundingBox boundingBox : boundingBoxes) {
+    private void update(final Player player, final Set<BoundingBox> boundingBoxes) {
+        final Set<BlockState> blockStates = new HashSet<>();
+        for (final BoundingBox boundingBox : boundingBoxes) {
             update(player, boundingBox, blockStates);
         }
         player.sendBlockChanges(blockStates);
     }
 
-    private void update(Player player, BoundingBox boundingBox, Set<BlockState> blockStates) {
-        for (Vector vector : new BoundingBoxIterator(boundingBox)) {
+    private void update(final Player player, final BoundingBox boundingBox, final Set<BlockState> blockStates) {
+        for (final Vector vector : new BoundingBoxIterator(boundingBox)) {
             blockStates.add(vector.toLocation(player.getWorld()).getBlock().getState());
         }
     }

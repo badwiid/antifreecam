@@ -17,34 +17,34 @@ public final class PlayerCacheHolder<Cache> {
     private final Supplier<Cache> cacheFactory;
     private final Map<UUID, Cache> caches;
 
-    public PlayerCacheHolder(Supplier<Cache> cacheFactory) {
+    public PlayerCacheHolder(final Supplier<Cache> cacheFactory) {
         this.cacheFactory = cacheFactory;
         this.caches = new ConcurrentHashMap<>();
 
         Bukkit.getPluginManager().registerEvents(new InnerListener(), JavaPlugin.getProvidingPlugin(getClass()));
     }
 
-    public void prepare(Player player) {
+    public void prepare(final Player player) {
         caches.put(player.getUniqueId(), cacheFactory.get());
     }
 
-    public void clear(Player player) {
+    public void clear(final Player player) {
         caches.remove(player.getUniqueId());
     }
 
-    public Cache get(Player player) {
+    public Cache get(final Player player) {
         return caches.computeIfAbsent(player.getUniqueId(), uuid -> cacheFactory.get());
     }
 
     public final class InnerListener implements org.bukkit.event.Listener {
 
         @EventHandler
-        public void onJoin(PlayerJoinEvent event)  {
+        public void onJoin(final PlayerJoinEvent event) {
             PlayerCacheHolder.this.prepare(event.getPlayer());
         }
 
         @EventHandler
-        public void onQuit(PlayerQuitEvent event)  {
+        public void onQuit(final PlayerQuitEvent event) {
             PlayerCacheHolder.this.clear(event.getPlayer());
         }
 

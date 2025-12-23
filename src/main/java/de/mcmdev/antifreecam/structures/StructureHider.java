@@ -1,10 +1,13 @@
 package de.mcmdev.antifreecam.structures;
 
 import de.mcmdev.antifreecam.api.PlayerCacheHolder;
+import de.mcmdev.antifreecam.config.Config;
+import de.mcmdev.antifreecam.config.ConfigHolder;
 import io.papermc.paper.event.packet.PlayerChunkLoadEvent;
 import io.papermc.paper.math.Position;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,56 +19,69 @@ import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public final class StructureHider implements Listener {
 
-    private static final Set<Structure> HIDDEN_STRUCTURES = Set.of(
-            Structure.BURIED_TREASURE,
-            Structure.FORTRESS,
-            Structure.MINESHAFT,
-            Structure.STRONGHOLD,
-            Structure.TRIAL_CHAMBERS,
-            Structure.TRAIL_RUINS
-    );
-
+    private final ConfigHolder configHolder;
     private final PlayerCacheHolder<StructureCache> playerCacheHolder;
 
-    public StructureHider(PlayerCacheHolder<StructureCache> playerCacheHolder) {
+    public StructureHider(final ConfigHolder configHolder, final PlayerCacheHolder<StructureCache> playerCacheHolder) {
+        this.configHolder = configHolder;
         this.playerCacheHolder = playerCacheHolder;
     }
 
     @EventHandler
-    private void onPlayerChunkLoad(PlayerChunkLoadEvent event)  {
-        BoundingBox chunkBoundingBox = createChunkBoundingBox(event.getChunk());
-        Set<GeneratedStructure> structuresToHide = findStructuresToHide(event.getChunk());
-        if(structuresToHide.isEmpty()) return;
+    private void onPlayerChunkLoad(final PlayerChunkLoadEvent event) {
+        final Optional<Config> configOptional = configHolder.getConfig(event.getWorld().getName());
+        if (configOptional.isEmpty()) {
+            return;
+        }
+        final Config config = configOptional.get();
+        if (!config.isEnableStructureHiding()) {
+            return;
+        }
 
-        StructureCache structureCache = playerCacheHolder.get(event.getPlayer());
-        for (GeneratedStructure structure : structuresToHide) {
-            Set<BoundingBox> boundingBoxesOfPiecesInChunk = extractStructurePieceBoundingBoxesInChunk(chunkBoundingBox, structure);
+        final BoundingBox chunkBoundingBox = createChunkBoundingBox(event.getChunk());
+        final Set<GeneratedStructure> structuresToHide = findStructuresToHide(event.getChunk(), config.getHiddenStructures());
+        if (structuresToHide.isEmpty()) return;
+
+        final StructureCache structureCache = playerCacheHolder.get(event.getPlayer());
+        for (final GeneratedStructure structure : structuresToHide) {
+            final Set<BoundingBox> boundingBoxesOfPiecesInChunk = extractStructurePieceBoundingBoxesInChunk(chunkBoundingBox, structure);
             structureCache.add(structure.getBoundingBox(), boundingBoxesOfPiecesInChunk);
 
-            Map<Position, BlockData> blockDataMap = createBlockDataMap(boundingBoxesOfPiecesInChunk);
+            final Map<Position, BlockData> blockDataMap = createBlockDataMap(event.getWorld(), boundingBoxesOfPiecesInChunk);
             event.getPlayer().sendMultiBlockChange(blockDataMap);
         }
     }
 
     @EventHandler
-    private void onPlayerMove(PlayerMoveEvent event) {
+    private void onPlayerMove(final PlayerMoveEvent event) {
         if (!event.hasChangedBlock()) {
+            return;
+        }
+        final Optional<Config> configOptional = configHolder.getConfig(event.getTo().getWorld().getName());
+        if (configOptional.isEmpty()) {
+            return;
+        }
+        final Config config = configOptional.get();
+        if (!config.isEnableStructureHiding()) {
             return;
         }
         playerCacheHolder.get(event.getPlayer()).checkUpdates(event.getPlayer());
     }
 
-    private Position toPosition(Vector vector) {
+    private Position toPosition(final Vector vector) {
         return Position.block(vector.getBlockX(), vector.getBlockY(), vector.getBlockZ());
     }
 
-    private @NotNull Set<BoundingBox> extractStructurePieceBoundingBoxesInChunk(BoundingBox chunkBoundingBox, GeneratedStructure generatedStructure) {
+    private @NotNull Set<BoundingBox> extractStructurePieceBoundingBoxesInChunk(final BoundingBox chunkBoundingBox, final GeneratedStructure generatedStructure) {
         return generatedStructure.getPieces().stream()
                 .map(StructurePiece::getBoundingBox)
                 .filter(boundingBox -> boundingBox.overlaps(chunkBoundingBox))
@@ -73,32 +89,37 @@ public final class StructureHider implements Listener {
                 .collect(Collectors.toSet());
     }
 
-    private Set<GeneratedStructure> findStructuresToHide(Chunk chunk) {
+    private Set<GeneratedStructure> findStructuresToHide(final Chunk chunk, final Set<Structure> hiddenStructures) {
         return chunk.getStructures()
                 .stream()
-                .filter(generatedStructure -> HIDDEN_STRUCTURES.contains(generatedStructure.getStructure()))
+                .filter(generatedStructure -> hiddenStructures.contains(generatedStructure.getStructure()))
                 .collect(Collectors.toSet());
     }
 
-    private BoundingBox createChunkBoundingBox(Chunk chunk) {
-        int worldMin = chunk.getWorld().getMinHeight();
-        int worldMax = chunk.getWorld().getMaxHeight();
+    private BoundingBox createChunkBoundingBox(final Chunk chunk) {
+        final int worldMin = chunk.getWorld().getMinHeight();
+        final int worldMax = chunk.getWorld().getMaxHeight();
         return new BoundingBox(chunk.getX() << 4, worldMin, chunk.getZ() << 4, (chunk.getX() << 4) + 15, worldMax, (chunk.getZ() << 4) + 15);
     }
 
-    private Map<Position, BlockData> createBlockDataMap(Collection<BoundingBox> boundingBoxes) {
-        Map<Position, BlockData> blockDataMap = new ConcurrentHashMap<>();
-        for (BoundingBox boundingBox : boundingBoxes) {
-            BoundingBoxIterator boundingBoxIterator = new BoundingBoxIterator(boundingBox);
-            for (Vector vector : boundingBoxIterator) {
-                if(vector.getBlockY() < 0) {
-                    blockDataMap.put(toPosition(vector), Material.DEEPSLATE.createBlockData());
-                }   else    {
-                    blockDataMap.put(toPosition(vector), Material.STONE.createBlockData());
-                }
+    private Map<Position, BlockData> createBlockDataMap(final World world, final Collection<BoundingBox> boundingBoxes) {
+        final Map<Position, BlockData> blockDataMap = new ConcurrentHashMap<>();
+        for (final BoundingBox boundingBox : boundingBoxes) {
+            final BoundingBoxIterator boundingBoxIterator = new BoundingBoxIterator(boundingBox);
+            for (final Vector vector : boundingBoxIterator) {
+                blockDataMap.put(toPosition(vector), getReplacementBlockData(world, vector));
             }
         }
         return blockDataMap;
+    }
+
+    private BlockData getReplacementBlockData(final World world, final Vector vector) {
+        return switch (world.getEnvironment()) {
+            case NORMAL -> vector.getBlockY() < 0 ? Material.DEEPSLATE.createBlockData() : Material.STONE.createBlockData();
+            case NETHER -> Material.NETHERRACK.createBlockData();
+            case THE_END -> Material.AIR.createBlockData();
+            default -> Material.AIR.createBlockData();
+        };
     }
 
 }
