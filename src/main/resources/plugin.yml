@@ -1,0 +1,10 @@
+# Plugin Configuration
+name: antifreecam
+version: 1.0.0
+author: badwiid
+main: your.package.MainClass
+api-version: 1.13
+commands:
+  antifreecam:
+    description: Prevents freecam
+    usage: /<command>
