@@ -1,0 +1,16 @@
+# AntiFreeCam Configuration
+# Configuration file for the AntiFreeCam plugin
+
+# Set whether AntiFreeCam is enabled or not
+enabled: true
+
+# Set the distance threshold to detect freecam movement
+movement_threshold: 5
+
+# Set the time in seconds before a player is flagged for freecam
+flag_time: 10
+
+# Set permissions for players
+permissions:
+  default: deny
+  admin: allow
